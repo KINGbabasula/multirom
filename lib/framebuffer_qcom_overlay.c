@@ -462,6 +462,7 @@ static int free_overlay(struct fb_qcom_overlay_data *data, int fd)
 {
     int ret = 0;
     struct mdp_display_commit ext_commit;
+    struct mdp_display_commit_oxygen ext_commit_oxygen;
 
     if(!isDisplaySplit(data))
     {
@@ -501,17 +502,24 @@ static int free_overlay(struct fb_qcom_overlay_data *data, int fd)
         }
     }
 
-    memset(&ext_commit, 0, sizeof(struct mdp_display_commit));
-    ext_commit.flags = MDP_DISPLAY_COMMIT_OVERLAY;
+    memset(&ext_commit_oxygen, 0, sizeof(struct mdp_display_commit_oxygen));
+    ext_commit_oxygen.flags = MDP_DISPLAY_COMMIT_OVERLAY;
 
     data->overlayL_id = MSMFB_NEW_REQUEST;
     data->overlayR_id = MSMFB_NEW_REQUEST;
 
-    ret = ioctl(fd, MSMFB_DISPLAY_COMMIT, &ext_commit);
+    ret = ioctl(fd, MSMFB_DISPLAY_COMMIT_OXYGEN, &ext_commit_oxygen);
     if(ret < 0)
     {
-        ERROR("Clear MSMFB_DISPLAY_COMMIT failed!");
-        return ret;
+        ERROR("Clear MSMFB_DISPLAY_COMMIT failed, trying Oxygen OS impl.");
+        memset(&ext_commit, 0, sizeof(struct mdp_display_commit));
+        ext_commit.flags = MDP_DISPLAY_COMMIT_OVERLAY;
+        ret = ioctl(fd, MSMFB_DISPLAY_COMMIT, &ext_commit);
+        if(ret < 0)
+        {
+            ERROR("overlay_display_frame failed, overlay commit Failed\n!");
+            return ret;
+        }
     }
 
     return 0;
@@ -566,6 +574,7 @@ static int impl_update(struct framebuffer *fb)
     int ret = 0;
     struct msmfb_overlay_data ovdataL, ovdataR;
     struct mdp_display_commit ext_commit;
+    struct mdp_display_commit_oxygen ext_commit_oxygen;
     struct fb_qcom_overlay_data *data = fb->impl_data;
     struct fb_qcom_overlay_mem_info *info = &data->mem_info[data->active_mem];
 
@@ -631,16 +640,23 @@ static int impl_update(struct framebuffer *fb)
         }
     }
 
-    memset(&ext_commit, 0, sizeof(struct mdp_display_commit));
-    ext_commit.flags = MDP_DISPLAY_COMMIT_OVERLAY;
+    memset(&ext_commit_oxygen, 0, sizeof(struct mdp_display_commit_oxygen));
+    ext_commit_oxygen.flags = MDP_DISPLAY_COMMIT_OVERLAY;
 
     fb_qcom_vsync_wait(data->vsync);
 
-    ret = ioctl(fb->fd, MSMFB_DISPLAY_COMMIT, &ext_commit);
+    ret = ioctl(fb->fd, MSMFB_DISPLAY_COMMIT_OXYGEN, &ext_commit_oxygen);
     if(ret < 0)
     {
-        ERROR("overlay_display_frame failed, overlay commit Failed\n!");
-        return -1;
+        //ERROR("overlay_display_frame failed, overlay commit Failed\n!");
+        memset(&ext_commit, 0, sizeof(struct mdp_display_commit));
+        ext_commit.flags = MDP_DISPLAY_COMMIT_OVERLAY;
+        ret = ioctl(fb->fd, MSMFB_DISPLAY_COMMIT, &ext_commit);
+        if(ret < 0)
+        {
+            ERROR("overlay_display_frame failed, overlay commit Failed\n!");
+            return -1;
+        }
     }
 
     if(++data->active_mem >= NUM_BUFFERS)
